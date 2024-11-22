@@ -1,0 +1,72 @@
+---
+title: "Reflection Exercise 4"
+format: pdf
+editor: visual
+bibliography: references.bib
+---
+
+```{r}
+#| include: false
+#| warning: false
+#| message: false
+
+library(dplyr)
+library(tidyr)
+library(haven)
+# read file
+ipums_extract <- read_dta("usa_00002.dta")
+# convert columns to factors
+ipums_extract <- 
+  ipums_extract %>%
+  mutate(across(c(stateicp, educ, educd), as.factor))
+```
+
+Data was obtained through Integrated Public Use Microdata Series USA (IPUMS USA) [@ipumsusa] and contains data surrounding the 2022 American Community Survey (ACS). Two variables were extracted from the 2022 ACS: STATEICP and EDUC. After selecting the correct data and converting the file from a .dat to a .dta, you could download the data extract from IPUMS USA. You then unzip the file and import it into R [@citeR].
+
+This analysis uses the dplyr, tidyr, and haven packages in order to synthesize the data [@tidyverse].
+
+The ratio estimators approach was used in order to estimate the total number of respondents in each state. This approach allows you to take the ratio between two means for a subset of your data in which you know both values, and broad apply it to the broader pool in which you only have one of the two values needed. Given the actual number of respondents in California and after extracting the number of doctoral respondents in California, we were able to determine the ratio of respondents to doctoral respondents. This ratio was then applied to the number of doctoral respondent in every state, giving us an estimated total number of respondents per state.
+
+In @tbl-respondents, we see the number of doctoral respondents, the estimated number of total respondents, and the actual number of total respondents per state.
+
+In some instances the estimated amount of total respondents is very close to the actual value. In others, such as Massachusetts (STATEICP = 2) or Indiana (STATEICP = 22), we see large discrepancies. These numbers are so off in these states because the proportion of state populations who have doctoral degrees varies widely from state to state. In Massachusetts our estimated total is much higher than the actual because a larger proportion of respondents in Massachusetts have doctoral degrees compared to California. The same applies to Indiana but in the reverse, in which they have a lower proportion of doctoral respondents than California.
+
+```{r}
+#| label: tbl-respondents
+#| tbl-cap: The number of doctoral respondents vs estimated respondents vs actual respondents in each state
+#| echo: false
+# respondents with doctoral degrees (116)
+doctoral_respondents <- ipums_extract %>%
+  filter(educd == "116") %>%
+  group_by(stateicp) %>%
+  summarise(doctoral_count = n(), .groups = 'drop')
+
+# respondents with doctoral degrees in California (71)
+doctoral_ca_respondents <- doctoral_respondents %>%
+  filter(stateicp == "71") %>%
+  pull(doctoral_count)
+
+# number of respondents in California
+actual_ca_respondents <- 391171
+
+# total actual respondents in each state
+actual_counts <- ipums_extract %>%
+  group_by(stateicp) %>%
+  summarise(actual_total = n(), .groups = 'drop')
+
+# doctoral degrees to total respondents
+ratio <- doctoral_ca_respondents / actual_ca_respondents
+
+# estimated # of total respondents for each state
+estimated_total <- doctoral_respondents %>%
+  mutate(estimated_total = round(doctoral_count / ratio))
+
+# compare doctoral total vs estimated total vs actual total
+comparison <- estimated_total %>%
+  left_join(actual_counts, by = "stateicp")
+
+# print table comparing values
+print(comparison, n=51)
+```
+\newpage
+## References {#bibliography}
