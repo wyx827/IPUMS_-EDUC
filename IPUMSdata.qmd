@@ -1,7 +1,12 @@
 ---
-title: "Reflection Exercise 4"
+title: "A Case Study from 2022 IPUMS USA"
+subtitle: "Analyzing state-level populations using the ratio estimation method reveals critical differences in population distribution."
+author: 
+  - Yuxuan Wei
+thanks: "Code and data are available at: https://github.com/wyx827/IPUMS_EDUC"
+date: today
+date-format: long
 format: pdf
-editor: visual
 bibliography: references.bib
 ---
 
@@ -10,63 +15,101 @@ bibliography: references.bib
 #| warning: false
 #| message: false
 
+# Load libraries
 library(dplyr)
 library(tidyr)
-library(haven)
-# read file
-ipums_extract <- read_dta("usa_00002.dta")
-# convert columns to factors
-ipums_extract <- 
-  ipums_extract %>%
-  mutate(across(c(stateicp, educ, educd), as.factor))
+library(tidyverse)
+
+# Read the data
+data <- read.csv("/Users/shaw/Desktop/STA304/Exercise/usa_00002.csv")
+
+# Convert relevant columns to factors
+data <- data %>%
+  mutate(across(c(STATEICP, EDUCD), as.factor))
 ```
 
-Data was obtained through Integrated Public Use Microdata Series USA (IPUMS USA) [@ipumsusa] and contains data surrounding the 2022 American Community Survey (ACS). Two variables were extracted from the 2022 ACS: STATEICP and EDUC. After selecting the correct data and converting the file from a .dat to a .dta, you could download the data extract from IPUMS USA. You then unzip the file and import it into R [@citeR].
+# Introduction
 
-This analysis uses the dplyr, tidyr, and haven packages in order to synthesize the data [@tidyverse].
+This study utilizes the 2022 American Community Survey (ACS) dataset, obtained from the Integrated Public Use Microdata Series USA [@ipumsusa]. The primary goal is to analyze the relationship between educational attainment, specifically doctoral degrees, and state-level population estimates using the **ratio estimation method**.
 
-The ratio estimators approach was used in order to estimate the total number of respondents in each state. This approach allows you to take the ratio between two means for a subset of your data in which you know both values, and broad apply it to the broader pool in which you only have one of the two values needed. Given the actual number of respondents in California and after extracting the number of doctoral respondents in California, we were able to determine the ratio of respondents to doctoral respondents. This ratio was then applied to the number of doctoral respondent in every state, giving us an estimated total number of respondents per state.
+The ratio estimation method provides a way to generalize known relationships within a sample (e.g., California) to estimate populations across states. By understanding the proportion of doctoral degree holders in California and applying this to other states, we estimate total populations. This approach reveals both the utility and limitations of ratio estimators in population studies.
 
-In @tbl-respondents, we see the number of doctoral respondents, the estimated number of total respondents, and the actual number of total respondents per state.
+Data are extract from IPUMS_USA. Two variables were extracted from the 2022 ACS: STATEICP and EDUC. After selecting the correct data and converting the file from a .dat to a .dta, you could download the data extract from IPUMS USA. You then unzip the file and import it into R [@citeR].This analysis uses the dplyr, tidyr, and haven packages in order to synthesize the data [@tidyverse].
 
-In some instances the estimated amount of total respondents is very close to the actual value. In others, such as Massachusetts (STATEICP = 2) or Indiana (STATEICP = 22), we see large discrepancies. These numbers are so off in these states because the proportion of state populations who have doctoral degrees varies widely from state to state. In Massachusetts our estimated total is much higher than the actual because a larger proportion of respondents in Massachusetts have doctoral degrees compared to California. The same applies to Indiana but in the reverse, in which they have a lower proportion of doctoral respondents than California.
+# Doctoral Degree Holders by State
+In @tbl-doctoral, we observe the number of doctoral degree holders by state. For example, state code 3 (California) has the highest number of doctoral degree holders with 2014, while states like 2 (Massachusetts) and 6 (Indiana) have significantly fewer, with 165 and 131, respectively. These differences highlight the uneven distribution of doctoral degree holders across states.
+
+The variation in these numbers reflects the unique characteristics of each state. For example
+
+- States like California (STATEICP = 3) and Florida (STATEICP = 12) have large populations, leading to a higher count of doctoral degree holders.
+
+- In contrast, smaller states like Indiana (STATEICP = 6) show lower numbers due to their smaller populations or lower rates of educational attainment.
+
+This foundational data allows us to compute ratios, which we later use for estimating the total population in each state.
 
 ```{r}
-#| label: tbl-respondents
-#| tbl-cap: The number of doctoral respondents vs estimated respondents vs actual respondents in each state
+#| label: tbl-doctoral
+#| tbl-cap: "Doctoral Degree Holders by State"
 #| echo: false
-# respondents with doctoral degrees (116)
-doctoral_respondents <- ipums_extract %>%
-  filter(educd == "116") %>%
-  group_by(stateicp) %>%
+#| warning: false
+#| message: false
+
+# Filter out respondents with a doctoral degree
+doctoral_respondents <- data %>% filter(EDUCD == 116)
+
+# Summarize the number of doctoral degree holders by state
+doctoral_count_by_state <- doctoral_respondents %>%
+  group_by(STATEICP) %>%
   summarise(doctoral_count = n(), .groups = 'drop')
 
-# respondents with doctoral degrees in California (71)
-doctoral_ca_respondents <- doctoral_respondents %>%
-  filter(stateicp == "71") %>%
-  pull(doctoral_count)
+# Display the first 8 rows of the summarized data in table format
+knitr::kable(head(doctoral_count_by_state, 8), format = "simple", col.names = c('State Code', 'Doctoral Degree Holders'))
+```
 
-# number of respondents in California
-actual_ca_respondents <- 391171
+# Ratio Estimation for State Populations
+The ratio estimation method calculates a baseline proportion by using California's population data, where both the total number of respondents and the number of doctoral degree holders are known. The ratio is then applied to other states to estimate their total populations based on the number of doctoral degree holders in each state.
 
-# total actual respondents in each state
-actual_counts <- ipums_extract %>%
-  group_by(stateicp) %>%
+In @tbl-population-estimate, we compare the estimated total population with the actual total population for a few states:
+
+- California (State Code = 3), which serves as our baseline, has an estimated total of 124,340 and an actual total of 73,077. This overestimation is likely because the proportion of doctoral degree holders in California is used as a reference, and California may have different characteristics compared to other states.
+
+- Massachusetts (State Code = 2) has an estimated total of 10,187 compared to an actual total of 14,523. This discrepancy indicates that Massachusetts has a different ratio of doctoral degree holders relative to its population than California, leading to an underestimation.
+
+- For New York (State Code = 13), the estimated total (174,656) is lower than the actual total (203,891). This suggests that New York's proportion of doctoral degree holders differs significantly from California's, likely due to regional differences in education levels and demographics.
+
+These examples illustrate that the ratio estimation method is sensitive to the underlying assumptions about the relationship between doctoral degree holders and the general population across states. Significant variations in educational attainment levels between states can lead to discrepancies between estimated and actual populations, emphasizing the need for careful consideration when applying ratio estimations to diverse regions.
+
+```{r}
+#| label: tbl-population-estimate
+#| tbl-cap: "Estimated vs Actual Population Using Ratio Estimation"
+#| echo: false
+#| warning: false
+#| message: false
+
+# Define California's total population and doctoral degree holders
+california_total <- 391171
+california_doctoral <- doctoral_count_by_state %>%
+  filter(STATEICP == "71") %>%
+  pull(doctoral_count) # Pull 'doctoral_count' for California
+
+# Calculate the ratio
+california_ratio <- california_doctoral / california_total
+
+# Actual total respondents in each state
+actual_total_by_state <- data %>%
+  group_by(STATEICP) %>%
   summarise(actual_total = n(), .groups = 'drop')
 
-# doctoral degrees to total respondents
-ratio <- doctoral_ca_respondents / actual_ca_respondents
+# Estimate total population and combine with actual data
+comparison <- doctoral_count_by_state %>%
+  transmute(STATEICP, estimated_total = round(doctoral_count / california_ratio)) %>%
+  left_join(actual_total_by_state, by = "STATEICP")
 
-# estimated # of total respondents for each state
-estimated_total <- doctoral_respondents %>%
-  mutate(estimated_total = round(doctoral_count / ratio))
+# Display the first few rows
+knitr::kable(head(comparison, 10), format = "simple", col.names = c('State Code', 'Estimated Total', 'Actual Total'))
 
-# compare doctoral total vs estimated total vs actual total
-comparison <- estimated_total %>%
-  left_join(actual_counts, by = "stateicp")
-
-# print table comparing values
-print(comparison, n=51)
 ```
+
 \newpage
+
 ## References {#bibliography}
